@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+<h2>Admin Dashboard</h2>
+<div class="mb-4">
+    <strong>Total Notes:</strong> {{ total_notes }}
+</div>
+
+<h4>Users</h4>
+<table class="table table-bordered table-hover">
+    <thead class="thead-dark">
+        <tr>
+            <th>ID</th><th>Email</th><th>Name</th><th>Role</th><th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for user_entry in users %}
+        <tr class="{% if user_entry.is_admin %}table-warning{% endif %}">
+            <td>{{ user_entry.id }}</td>
+            <td>{{ user_entry.email }}</td>
+            <td>{{ user_entry.first_name }}</td>
+            <td>
+                {% if user_entry.is_admin %}
+                    <span class="badge badge-danger">ADMIN</span>
+                {% else %}
+                    <span class="badge badge-success">{{ user_entry.role|upper }}</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if not user_entry.is_admin %}
+                <form method="POST" action="{{ url_for('admin.delete_user', user_id=user_entry.id) }}">
+                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                </form>
+                {% else %}
+                    <span class="text-muted">Protected</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

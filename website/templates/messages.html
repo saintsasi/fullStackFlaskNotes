@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% block title %}Messages | {{ other_user.first_name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-8">
+    <div class="chat-hero mb-3">
+      <div class="d-flex align-items-center justify-content-between">
+        <div>
+          <div class="text-muted small">Chat</div>
+          <h4 class="mb-0 d-flex align-items-center">
+            <span class="avatar mr-2">{{ other_user.first_name[:1] }}</span>
+            {{ other_user.first_name }}
+          </h4>
+        </div>
+        <a href="{{ url_for('views.messages_index') }}" class="btn btn-sm btn-outline-light">All conversations</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body" style="height:460px; overflow-y:auto;" id="messages-container" aria-live="polite">
+          {% for msg in messages %}
+              <div class="mb-3 d-flex {% if msg.sender_id == current_user.id %}justify-content-end{% else %}justify-content-start{% endif %}">
+                  <div class="bubble p-2 px-3 rounded-lg {% if msg.sender_id == current_user.id %}me{% else %}them{% endif %}">
+                      <div>{{ msg.content }}</div>
+                      <small class="d-block mt-1 text-muted">{{ msg.timestamp.strftime('%Y-%m-%d %H:%M') }}</small>
+                  </div>
+              </div>
+          {% endfor %}
+      </div>
+      <div class="card-footer">
+        <form id="msg-form" class="d-flex">
+            <input type="text" id="msg-input" class="form-control mr-2" placeholder="Type a message..." required aria-label="Message input">
+            <button class="btn btn-brand" type="submit">Send</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Conversations</span>
+        <a href="{{ url_for('views.messages_index') }}" class="small">Browse</a>
+      </div>
+      <div class="list-group list-group-flush" style="max-height:540px; overflow-y:auto;">
+        {% for u in sidebar_users %}
+          <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center {% if u.id == other_user.id %}active text-white{% endif %}"
+             href="{{ url_for('views.messages', user_id=u.id) }}">
+            <span>{{ u.first_name or u.email }}</span>
+            {% set unread = unread_map.get(u.id, 0) %}
+            {% if unread %}
+              <span class="badge badge-light">{{ unread }}</span>
+            {% endif %}
+          </a>
+        {% else %}
+          <div class="list-group-item">No other users</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const messagesContainer = document.getElementById('messages-container');
+    if (messagesContainer) {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    const OTHER_USER_ID = {{ other_user.id }};
+    const CURRENT_USER_ID = {{ current_user.id }};
+
+    const form = document.getElementById('msg-form');
+    const input = document.getElementById('msg-input');
+    let lastId = {% if messages %}{{ messages[-1].id }}{% else %}0{% endif %};
+    const MAX_MESSAGES = 300;
+
+    function renderMessages(list) {
+        messagesContainer.innerHTML = '';
+        list.forEach(m => appendMessage(m, m.sender_id === CURRENT_USER_ID));
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    function appendMessage(data, fromSelf) {
+        const wrapper = document.createElement('div');
+        wrapper.classList.add('mb-3', 'd-flex', fromSelf ? 'justify-content-end' : 'justify-content-start');
+
+        const bubble = document.createElement('div');
+        bubble.classList.add('p-2', 'px-3', 'rounded-lg');
+        bubble.classList.add(fromSelf ? 'bg-primary' : 'bg-light');
+        if (fromSelf) bubble.classList.add('text-white');
+        bubble.textContent = data.content;
+
+        const small = document.createElement('small');
+        small.classList.add('text-muted', 'd-block', 'mt-1');
+        small.innerText = data.timestamp;
+
+        const container = document.createElement('div');
+        container.appendChild(bubble);
+        container.appendChild(small);
+
+        wrapper.appendChild(container);
+
+        messagesContainer.appendChild(wrapper);
+    }
+
+    function loadFeed() {
+        fetch(`/messages/${OTHER_USER_ID}/feed?after=${lastId}`)
+            .then(r => r.json())
+            .then(list => {
+                if (list.length === 0) return;
+                list.forEach(m => appendMessage(m, m.sender_id === CURRENT_USER_ID));
+                lastId = list[list.length - 1].id;
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                trimFeed();
+            })
+            .then(markRead)
+            .catch(err => console.error('feed error', err));
+    }
+
+    function markRead() {
+        fetch(`/messages/${OTHER_USER_ID}/read`, { method: 'POST' })
+            .catch(() => {});
+    }
+
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        const text = input.value.trim();
+        if (!text) return;
+
+        fetch(`/messages/${OTHER_USER_ID}/send`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({content: text})
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success && data.message) {
+                appendMessage(data.message, true);
+                lastId = Math.max(lastId, data.message.id);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                trimFeed();
+            } else {
+                alert(data.error || 'Failed to send message');
+            }
+        })
+        .catch(err => console.error('send error', err));
+
+        input.value = '';
+    });
+
+    // poll for new messages every 4s
+    setInterval(loadFeed, 4000);
+    loadFeed();
+
+    function trimFeed() {
+        const items = messagesContainer.querySelectorAll('.mb-3');
+        if (items.length > MAX_MESSAGES) {
+            const excess = items.length - MAX_MESSAGES;
+            for (let i = 0; i < excess; i++) {
+                items[i].remove();
+            }
+        }
+    }
+</script>
+{% endblock %}

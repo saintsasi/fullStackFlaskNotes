@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}{{ classroom.name}} Feed{% endblock %}
+{% block content %}
+<h2 class="mb-3">{{ classroom.name}} Feed</h2>
+
+<div class="d-flex justify-content-between mb-3">
+  <a class="btn btn-outline-info" href="{{ url_for('views.class_chat', class_id=classroom.id) }}">Open Class Chat & Polls</a>
+  {% if current_user.id == classroom.teacher_id or current_user.is_admin %}
+  <button class="btn btn-brand" data-toggle="collapse" data-target="#new-class-post">New Class Post</button>
+  {% endif %}
+</div>
+
+{% if current_user.id == classroom.teacher_id or current_user.is_admin %}
+<div class="collapse mb-3" id="new-class-post">
+  <div class="card card-body">
+    <form action="{{ url_for('views.create_class_post', class_id=classroom.id) }}" method="POST">
+      <div class="form-group">
+        <label class="text-muted small">Title (optional)</label>
+        <input type="text" name="title" class="form-control" placeholder="Announcement title">
+      </div>
+      <div class="form-group">
+        <label class="text-muted small">Content</label>
+        <textarea name="content" class="form-control" rows="4" placeholder="Share updates, resources, or tasks..." required></textarea>
+      </div>
+      <button class="btn btn-brand" type="submit">Post</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div class="list-group">
+{% for post in posts %}
+  <div class="list-group-item shadow-sm mb-2">
+    <p class="mb-1 font-weight-bold">{{ post.title or 'Class Update' }}</p>
+    <p class="mb-2">{{ post.content | safe }}</p>
+    <small class="text-muted d-block">By {{ post.author.first_name }} |
+    {{ (post.timestamp or post.date).strftime('%Y-%m-%d %H:%M') if (post.timestamp or post.date) else '' }}</small>
+  </div>
+{% else %}
+  <p class="text-muted">No posts in this class yet.</p>
+{% endfor %}
+</div>
+
+{% if current_user.is_admin or current_user.id == classroom.teacher_id %}
+<h5 class="mt-4">Roster</h5>
+<ul class="list-group">
+  {% for s in classroom.students %}
+  <li class="list-group-item d-flex justify-content-between align-items-center">
+    <span>{{ s.first_name or s.email }}</span>
+    {% if s.id != classroom.teacher_id %}
+      <form action="{{ url_for('views.remove_student', class_id=classroom.id, user_id=s.id) }}" method="POST" onsubmit="return confirm('Remove this student?');">
+        <button class="btn btn-sm btn-outline-danger" type="submit">Remove</button>
+      </form>
+    {% endif %}
+  </li>
+  {% else %}
+  <li class="list-group-item text-muted">No students enrolled.</li>
+  {% endfor %}
+</ul>
+{% endif %}
+{% endblock %}

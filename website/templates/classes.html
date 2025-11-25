@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}My Classes{% endblock %}
+{% block content %}
+<h2 class="mb-3">My Classes</h2>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <form action="{{ url_for('views.join_class_by_code') }}" method="POST" class="form-inline">
+      <label class="mr-2 text-muted small">Join with code</label>
+      <input type="text" name="code" class="form-control mr-2" placeholder="Enter class code" required>
+      <button class="btn btn-brand btn-sm" type="submit">Join</button>
+    </form>
+  </div>
+</div>
+
+{% if joined %}
+<h4>Enrolled</h4>
+<div class="row">
+  {% for cls in joined %}
+    <div class="col-md-6 mb-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <h5 class="card-title">{{ cls.name }}</h5>
+          <p class="card-text mb-1">Code: <code>{{ cls.code or 'N/A' }}</code></p>
+          <a href="{{ url_for('views.class_feed', class_id=cls.id) }}" class="btn btn-sm btn-outline-primary">Open feed</a>
+        </div>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+{% else %}
+<p class="text-muted">You are not enrolled in any classes yet.</p>
+{% endif %}
+
+{% if teaching %}
+<h4 class="mt-4">Teaching</h4>
+<div class="row">
+  {% for cls in teaching %}
+    <div class="col-md-6 mb-3">
+      <div class="card h-100 border-success">
+        <div class="card-body">
+          <h5 class="card-title">{{ cls.name }}</h5>
+          <p class="card-text mb-1">Code: <code>{{ cls.code or 'N/A' }}</code></p>
+          <a href="{{ url_for('views.class_feed', class_id=cls.id) }}" class="btn btn-sm btn-success">Open feed</a>
+        </div>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+{% else %}
+<p class="text-muted">You are not teaching any classes.</p>
+{% endif %}
+{% endblock %}

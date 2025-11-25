@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}My Notes{% endblock %}
+
+{% block content %}
+<h2>My Notes</h2>
+
+<div class="mb-4">
+    <a class="btn btn-primary" href="{{ url_for('views.create_note') }}">Create New Note</a>
+</div>
+
+<div class="row">
+    {% for note in user_notes %}
+    <div class="col-md-4 mb-3">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h5>{{ note.title or "Untitled" }}</h5>
+                <p class="note-preview">{{ note.content|safe }}</p>
+                <p>
+                    {% for tag in note.tags %}
+                        <span class="badge badge-info">{{ tag.name }}</span>
+                    {% endfor %}
+                </p>
+                <small class="text-muted">{{ note.date.strftime('%Y-%m-%d') }}</small>
+                <div class="mt-2">
+                    <a href="{{ url_for('views.view_note', note_id=note.id) }}" class="btn btn-sm btn-outline-primary">View</a>
+                    <a href="{{ url_for('views.edit_note_page', note_id=note.id) }}" class="btn btn-sm btn-outline-secondary">Edit</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+        <p>You have not created any notes yet.</p>
+    {% endfor %}
+</div>
+{% endblock %}

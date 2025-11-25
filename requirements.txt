@@ -1,4 +1,9 @@
-flask
-Flask-SQLAlchemy
-flask-login
-gunicorn==20.1.0
+Flask==2.3.3
+Flask-SQLAlchemy==3.0.5
+SQLAlchemy==2.0.44
+Flask-Login==0.6.3
+Flask-Migrate==4.0.4
+Werkzeug==2.3.7
+Jinja2==3.1.2
+itsdangerous==2.1.2
+click==8.1.6

@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Messages{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="text-muted small">Inbox</div>
+    <h3 class="mb-0">Messages</h3>
+  </div>
+</div>
+
+<div class="chat-hero mb-3">
+  <div class="form-group mb-0">
+      <label for="user-search" class="text-muted small">Search users</label>
+      <input type="text" id="user-search" placeholder="Search user..." class="form-control" aria-label="Search users">
+  </div>
+  <ul id="user-results" class="list-group mt-2"></ul>
+</div>
+
+<div class="card">
+  <div class="list-group list-group-flush">
+      {% for u in users %}
+      <div class="list-group-item d-flex justify-content-between align-items-center">
+          <div>
+            <div class="font-weight-semibold">{{ u.first_name or u.email }}</div>
+            <div class="text-muted small">{{ u.email }}</div>
+          </div>
+          <a href="{{ url_for('views.messages', user_id=u.id) }}" class="btn btn-sm btn-outline-primary">Open</a>
+      </div>
+      {% else %}
+      <div class="list-group-item">No other users found.</div>
+      {% endfor %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $('#user-search').on('input', function () {
+        let query = $(this).val();
+        if (query.length > 0) {
+            $.get("{{ url_for('views.user_search') }}", { q: query }, function (data) {
+                $('#user-results').empty();
+                data.forEach(function (u) {
+                    $('#user-results').append(
+                        `<li class="list-group-item">
+                            <a href="/messages/${u.id}">${u.first_name} (${u.email})</a>
+                         </li>`
+                    );
+                });
+            });
+        } else {
+            $('#user-results').empty();
+        }
+    });
+</script>
+{% endblock %}

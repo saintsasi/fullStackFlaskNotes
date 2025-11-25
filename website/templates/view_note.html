@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}{{ note.title or "Untitled" }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>{{ note.title or "Untitled" }}</h2>
+    {% if note.user_id == current_user.id %}
+        <div>
+            <a href="{{ url_for('views.edit_note_page', note_id=note.id) }}" class="btn btn-sm btn-outline-secondary">Edit Note</a>
+            <button onclick="deleteNote({{ note.id }})" class="btn btn-sm btn-outline-danger">Delete</button>
+        </div>
+    {% endif %}
+</div>
+
+<div class="card card-body shadow-sm mb-4">
+    <div class="note-content-display mb-3">
+        {{ note.content | safe }}
+    </div>
+
+    {% if note.attachments %}
+    <div class="mb-3">
+        <h6>Attachments</h6>
+        <ul class="list-unstyled mb-0">
+            {% for att in note.attachments %}
+            <li>
+                <a href="{{ url_for('views.download_attachment', attachment_id=att.id) }}">{{ att.filename }}</a>
+                {% if att.size %}<small class="text-muted">({{ (att.size / 1024)|round(1) }} KB)</small>{% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <div class="d-flex align-items-center mb-3">
+        {% set likes = note.reactions|selectattr('type', 'equalto', 'like')|list %}
+        {% set dislikes = note.reactions|selectattr('type', 'equalto', 'dislike')|list %}
+        
+        <span class="mr-3">
+            <button class="btn btn-sm {% if current_user.id in note.reactions|selectattr('type', 'equalto', 'like')|map(attribute='user_id')|list %}btn-success{% else %}btn-outline-success{% endif %}"
+                    onclick="sendReaction({{ note.id }}, 'like')">
+                👍 {{ likes|length }}
+            </button>
+        </span>
+        <span class="mr-3">
+            <button class="btn btn-sm {% if current_user.id in note.reactions|selectattr('type', 'equalto', 'dislike')|map(attribute='user_id')|list %}btn-danger{% else %}btn-outline-danger{% endif %}"
+                    onclick="sendReaction({{ note.id }}, 'dislike')">
+                👎 {{ dislikes|length }}
+            </button>
+        </span>
+        
+        <small class="text-muted ml-auto">
+            By {{ note.owner.first_name }} | 
+            Created: {{ note.date.strftime('%Y-%m-%d %H:%M') }} 
+            </small>
+    </div>
+    
+    <div class="mt-2">
+        {% for tag in note.tags %}
+            <span class="badge badge-info mr-1">{{ tag.name }}</span>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="mt-4">
+    <h3>Comments ({{ comments|length }})</h3>
+    <div id="comment-list">
+        {% for comment in comments %}
+            {% include '_comment_item.html' %} 
+        {% else %}
+            <p id="no-comments" class="text-muted">No comments yet. Be the first to add one!</p>
+        {% endfor %}
+    </div>
+
+    <h4 class="mt-4">Add a Comment</h4>
+    <div class="card card-body">
+        <textarea id="comment-content" class="form-control mb-2" rows="3" placeholder="Write your comment..."></textarea>
+        <button class="btn btn-primary btn-sm" onclick="addComment({{ note.id }})">Post Comment</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Handles reaction buttons (like/dislike)
+    function sendReaction(noteId, type) {
+        fetch('/add-reaction', {
+            method: 'POST',
+            body: JSON.stringify({ noteId: noteId, type: type }),
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => {
+            if (response.ok) {
+                // Successful action, reload the page to update counts/styles
+                location.reload(); 
+            } else {
+                alert("Error recording reaction.");
+            }
+        })
+        .catch(error => console.error('Reaction error:', error));
+    }
+
+    // Handles comment submission
+    function addComment(noteId, parentId = null) {
+        const contentArea = document.getElementById(parentId ? `reply-content-${parentId}` : 'comment-content');
+        const content = contentArea.value.trim();
+
+        if (!content) {
+            alert("Comment cannot be empty.");
+            return;
+        }
+
+        fetch('/add-comment', {
+            method: 'POST',
+            body: JSON.stringify({ noteId: noteId, content: content, parentId: parentId }),
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                contentArea.value = ''; // Clear textarea
+                const commentList = document.getElementById('comment-list');
+                const noComments = document.getElementById('no-comments');
+                
+                if (noComments) {
+                    noComments.remove();
+                }
+
+                // Simple client-side append for immediate feedback (without full reload)
+                const newCommentHtml = `
+                    <div class="card card-body bg-light mb-2 ml-3">
+                        <p class="mb-1">${content}</p>
+                        <small class="text-muted">By ${data.author_name} | ${data.timestamp}</small>
+                    </div>
+                `;
+                commentList.insertAdjacentHTML('beforeend', newCommentHtml);
+            } else {
+                alert("Failed to post comment: " + data.error);
+            }
+        })
+        .catch(error => console.error('Comment error:', error));
+    }
+</script>
+{% endblock %}

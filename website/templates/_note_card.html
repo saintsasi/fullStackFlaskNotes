@@ -1,0 +1,38 @@
+{% if note %}
+<div class="col-md-4 mb-3">
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h5>{{ note.title or "Untitled" }}</h5>
+            
+            {% if note.pinned %}
+                <span class="badge badge-danger">PINNED</span>
+            {% endif %}
+
+            <p class="note-preview">{{ note.content|safe }}</p>
+
+            <p>
+                {% for tag in note.tags %}
+                    <span class="badge badge-info mr-1">{{ tag.name }}</span>
+                {% endfor %}
+            </p>
+
+            <small class="text-muted">
+                By {{ note.owner.first_name if note.owner else note.author.first_name }}
+                {{ (note.date or note.timestamp).strftime('%Y-%m-%d') if (note.date or note.timestamp) else '' }}
+            </small>
+
+            <div class="mt-2">
+                <a href="{{ url_for('views.view_note', note_id=note.id) }}"
+                   class="btn btn-sm btn-outline-primary">View</a>
+
+                {% if note.user_id == current_user.id %}
+                    <a href="{{ url_for('views.edit_note_page', note_id=note.id) }}"
+                       class="btn btn-sm btn-outline-secondary">Edit</a>
+                    <button onclick="deleteNote({{ note.id }})" 
+                            class="btn btn-sm btn-outline-danger">Delete</button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}

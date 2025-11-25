@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Shared Note{% endblock %}
+
+{% block content %}
+<h2 class="text-center">{{ note.title }}</h2>
+<div class="card card-body bg-light mb-3">
+    <p>{{ note.content | safe }}</p>
+    <small class="text-muted">Created by {{ note.user.first_name }} on {{ note.date.strftime('%Y-%m-%d %H:%M') }}</small>
+</div>
+
+<div class="text-center">
+    {% if current_user.is_authenticated %}
+    <a href="/" class="btn btn-secondary">Back to Home</a>
+    {% else %}
+    <a href="/login" class="btn btn-primary">Login to Save Note</a>
+    {% endif %}
+</div>
+{% endblock %}

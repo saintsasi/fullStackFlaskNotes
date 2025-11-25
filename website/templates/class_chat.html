@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+{% block title %}{{ classroom.name }} | Chat{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="text-muted small">Class</div>
+    <h3 class="mb-0">{{ classroom.name }}</h3>
+  </div>
+  <span class="badge badge-soft">Class Code: {{ classroom.code or 'N/A' }}</span>
+</div>
+
+<div class="row">
+  <div class="col-lg-8">
+    <div class="card mb-3">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between">
+          <h5 class="mb-0">Class Chat</h5>
+          <small class="text-muted">Live thread</small>
+        </div>
+      </div>
+      <div class="card-body" style="height:460px; overflow-y:auto;" id="chat-feed" aria-live="polite">
+        {% for m in chat_messages %}
+        <div class="mb-3 d-flex {% if m.user_id == current_user.id %}justify-content-end{% else %}justify-content-start{% endif %}">
+          <div class="bubble {% if m.user_id == current_user.id %}me{% else %}them{% endif %} p-2 px-3 rounded-lg">
+            <div class="small text-muted mb-1">{{ m.user.first_name or m.user.email }}</div>
+            <div>{{ m.content }}</div>
+            <small class="d-block mt-1 text-muted">{{ m.timestamp.strftime('%Y-%m-%d %H:%M') }}</small>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="card-footer">
+        <form id="chat-form" class="d-flex">
+          <input type="text" id="chat-input" class="form-control mr-2" placeholder="Share an update..." required aria-label="Chat message">
+          <button class="btn btn-brand" type="submit">Send</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">Polls</h5>
+          {% if current_user.is_admin or current_user.id == classroom.teacher_id %}
+          <button class="btn btn-sm btn-outline-primary" data-toggle="collapse" data-target="#poll-create">New Poll</button>
+          {% endif %}
+        </div>
+
+        {% if current_user.is_admin or current_user.id == classroom.teacher_id %}
+        <div class="collapse mt-3" id="poll-create">
+          <div class="form-group">
+            <label class="small text-muted">Question</label>
+            <input type="text" id="poll-question" class="form-control" placeholder="Ask your class...">
+          </div>
+          <div class="form-group">
+            <label class="small text-muted">Options (up to 6)</label>
+            {% for i in range(6) %}
+            <input type="text" class="form-control mb-1 poll-option" placeholder="Option {{ i+1 }}">
+            {% endfor %}
+          </div>
+          <button id="create-poll" class="btn btn-brand btn-block">Create Poll</button>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="list-group list-group-flush" id="poll-list">
+        {% for p in polls %}
+          <div class="list-group-item">
+            <div class="font-weight-semibold mb-1">{{ p.question }}</div>
+            {% set total = 0 %}
+            {% for opt in p.options %}{% set total = total + opt.votes|length %}{% endfor %}
+            {% for opt in p.options %}
+              {% set count = opt.votes|length %}
+              {% set percent = (count / total * 100) if total > 0 else 0 %}
+              <div class="mb-1">
+                <div class="d-flex justify-content-between small">
+                  <span>{{ opt.text }}</span>
+                  <span>{{ count }}</span>
+                </div>
+                <div class="progress" style="height:6px;">
+                  <div class="progress-bar" role="progressbar" style="width: {{ percent }}%;" aria-valuenow="{{ percent }}" aria-valuemin="0" aria-valuemax="100"></div>
+                </div>
+                <button class="btn btn-sm btn-outline-primary mt-1 vote-btn" data-option="{{ opt.id }}" data-poll="{{ p.id }}">Vote</button>
+              </div>
+            {% endfor %}
+            <small class="text-muted">Created {{ p.timestamp.strftime('%Y-%m-%d %H:%M') }}</small>
+          </div>
+        {% else %}
+          <div class="list-group-item text-muted">No polls yet.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const CLASS_ID = {{ classroom.id }};
+  const CURRENT_USER = {{ current_user.id }};
+  let lastChatId = {% if chat_messages %}{{ chat_messages[-1].id }}{% else %}0{% endif %};
+  const MAX_CHAT = 300;
+
+  const chatFeed = document.getElementById('chat-feed');
+  const chatForm = document.getElementById('chat-form');
+  const chatInput = document.getElementById('chat-input');
+
+  function appendChat(msg) {
+    const wrap = document.createElement('div');
+    wrap.classList.add('mb-3','d-flex', msg.user_id === CURRENT_USER ? 'justify-content-end' : 'justify-content-start');
+    const bubble = document.createElement('div');
+    bubble.classList.add('bubble','p-2','px-3','rounded-lg');
+    bubble.classList.add(msg.user_id === CURRENT_USER ? 'me' : 'them');
+    bubble.innerHTML = `<div class="small text-muted mb-1">${msg.author}</div><div>${msg.content}</div><small class="d-block mt-1 text-muted">${msg.timestamp}</small>`;
+    wrap.appendChild(bubble);
+    chatFeed.appendChild(wrap);
+    chatFeed.scrollTop = chatFeed.scrollHeight;
+  }
+
+  function loadChat() {
+    fetch(`/class/${CLASS_ID}/chat/feed?after=${lastChatId}`)
+      .then(r => r.json())
+      .then(list => {
+        list.forEach(m => {
+          appendChat(m);
+          lastChatId = Math.max(lastChatId, m.id);
+          trimChat();
+        });
+      })
+      .catch(err => console.error('chat feed error', err));
+  }
+
+  chatForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const text = chatInput.value.trim();
+    if (!text) return;
+    fetch(`/class/${CLASS_ID}/chat/send`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({content: text})
+    }).then(r => r.json()).then(res => {
+      if (res.success && res.message) {
+        appendChat(res.message);
+        lastChatId = Math.max(lastChatId, res.message.id);
+        trimChat();
+      }
+      chatInput.value = '';
+    }).catch(err => console.error('chat send error', err));
+  });
+
+  setInterval(loadChat, 4000);
+  loadChat();
+
+  function trimChat() {
+    const items = chatFeed.querySelectorAll('.mb-3');
+    if (items.length > MAX_CHAT) {
+      const excess = items.length - MAX_CHAT;
+      for (let i = 0; i < excess; i++) {
+        items[i].remove();
+      }
+    }
+  }
+
+  // Poll creation
+  const createBtn = document.getElementById('create-poll');
+  if (createBtn) {
+    createBtn.addEventListener('click', function() {
+      const question = document.getElementById('poll-question').value.trim();
+      const options = Array.from(document.querySelectorAll('.poll-option')).map(o => o.value.trim()).filter(Boolean);
+      fetch(`/class/${CLASS_ID}/polls`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({question, options})
+      }).then(r => r.json()).then(res => {
+        if (res.success) { location.reload(); }
+        else { alert(res.error || 'Failed to create poll'); }
+      }).catch(err => console.error('poll create error', err));
+    });
+  }
+
+  // Poll voting
+  document.querySelectorAll('.vote-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const optionId = this.dataset.option;
+      const pollId = this.dataset.poll;
+      fetch(`/class/${CLASS_ID}/polls/${pollId}/vote`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({option_id: optionId})
+      }).then(r => r.json()).then(res => {
+        if (res.success) { location.reload(); }
+        else { alert(res.error || 'Vote failed'); }
+      }).catch(err => console.error('vote error', err));
+    });
+  });
+</script>
+{% endblock %}

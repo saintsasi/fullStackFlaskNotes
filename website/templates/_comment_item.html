@@ -1,0 +1,11 @@
+<div class="card card-body mb-2 {% if comment.parent_id %}ml-5 bg-light{% else %}bg-white{% endif %}">
+    <p class="mb-1">{{ comment.content }}</p>
+    <small class="text-muted">By {{ comment.author.first_name }} | {{ comment.timestamp.strftime('%Y-%m-%d %H:%M') }}</small>
+    
+    {% if comment.replies %}
+        {% for reply in comment.replies %}
+            {% include '_comment_item.html' %} 
+        {% endfor %}
+    {% endif %}
+
+    </div>
